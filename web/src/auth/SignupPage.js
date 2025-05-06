@@ -238,7 +238,6 @@ class SignupPage extends React.Component {
         return;
       } else {
         values["password"] = passwordCipher;
-        
       }
     }
 
