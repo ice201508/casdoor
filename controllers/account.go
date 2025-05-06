@@ -32,6 +32,7 @@ const (
 	ResponseTypeIdToken = "id_token"
 	ResponseTypeSaml    = "saml"
 	ResponseTypeCas     = "cas"
+	ResponseTypeDevice  = "device"
 )
 
 type Response struct {
@@ -139,6 +140,8 @@ func (c *ApiController) Signup() {
 		invitationName = invitation.Name
 	}
 
+	userEmailVerified := false
+
 	if application.IsSignupItemVisible("Email") && application.GetSignupItemRule("Email") != "No verification" && authForm.Email != "" {
 		var checkResult *object.VerifyResult
 		checkResult, err = object.CheckVerificationCode(authForm.Email, authForm.EmailCode, c.GetAcceptLanguage())
@@ -150,6 +153,8 @@ func (c *ApiController) Signup() {
 			c.ResponseError(checkResult.Msg)
 			return
 		}
+
+		userEmailVerified = true
 	}
 
 	var checkPhone string
@@ -199,13 +204,31 @@ func (c *ApiController) Signup() {
 		userType = "paid-user"
 	}
 
+	password := authForm.Password
+	if application.OrganizationObj == nil {
+		application.OrganizationObj = organization
+	}
+
+	if application.OrganizationObj != nil && password != "" {
+		processedPassword, err := util.GetUnobfuscatedPassword(
+			application.OrganizationObj.PasswordObfuscatorType,
+			application.OrganizationObj.PasswordObfuscatorKey,
+			password,
+		)
+		if err != nil {
+			c.ResponseError(fmt.Sprintf("Password processing error: %s", err.Error()))
+			return
+		}
+		password = processedPassword
+	}
+
 	user := &object.User{
 		Owner:             authForm.Organization,
 		Name:              username,
 		CreatedTime:       util.GetCurrentTime(),
 		Id:                id,
 		Type:              userType,
-		Password:          authForm.Password,
+		Password:          password,
 		DisplayName:       authForm.Name,
 		Gender:            authForm.Gender,
 		Bio:               authForm.Bio,
@@ -228,6 +251,7 @@ func (c *ApiController) Signup() {
 		Karma:             0,
 		Invitation:        invitationName,
 		InvitationCode:    authForm.InvitationCode,
+		EmailVerified:     userEmailVerified,
 	}
 
 	if len(organization.Tags) > 0 {
@@ -247,6 +271,10 @@ func (c *ApiController) Signup() {
 
 	if invitation != nil && invitation.SignupGroup != "" {
 		user.Groups = []string{invitation.SignupGroup}
+	}
+
+	if application.DefaultGroup != "" && user.Groups == nil {
+		user.Groups = []string{application.DefaultGroup}
 	}
 
 	affected, err := object.AddUser(user)
@@ -456,6 +484,10 @@ func (c *ApiController) GetAccount() {
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
+	}
+
+	if organization != nil && len(organization.CountryCodes) == 1 && u != nil && u.CountryCode == "" {
+		u.CountryCode = organization.CountryCodes[0]
 	}
 
 	accessToken := c.GetSessionToken()
