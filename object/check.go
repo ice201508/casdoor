@@ -68,9 +68,11 @@ func CheckUserSignup(application *Application, organization *Organization, authF
 	}
 
 	if application.IsSignupItemVisible("Password") {
-		msg := CheckPasswordComplexityByOrg(organization, authForm.Password)
-		if msg != "" {
-			return msg
+		if application.OrganizationObj.PasswordObfuscatorType == "" {
+			msg := CheckPasswordComplexityByOrg(organization, authForm.Password)
+			if msg != "" {
+				return msg
+			}
 		}
 	}
 
