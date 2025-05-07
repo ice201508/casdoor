@@ -260,6 +260,7 @@ class SignupPage extends React.Component {
     const params = new URLSearchParams(window.location.search);
     values.plan = params.get("plan");
     values.pricing = params.get("pricing");
+    values.confirm = values["password"];
     delete values.confirm;
     AuthBackend.signup(values)
       .then((res) => {
